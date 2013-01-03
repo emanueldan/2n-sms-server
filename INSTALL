@@ -1,0 +1,38 @@
+------------------------------------------
+Installation instructions for VoiceBlue 2n SMS Server v2.0
+------------------------------------------
+
+Do every step as root user (sudo su -)!
+The server need to be runs as root user because of the ttyUSB device read/write rights require it.
+You can setup as run the program as different user - not root - but you can add right to the log, sqlite, ttyusb paths 
+for that user also.
+
+-----------------------
+A.) SERVER ISTALL:
+-----------------------
+0.) Stop your running "2nVoiceBlueSMSServer.py" program :)
+
+1.) Copy the "2nVoiceBlueSMSServer.py" and "2nVoiceBlueSMSServer.sh" files to /usr/local/bin/
+
+2.) Edit (if necessary) "2nVoiceBlueSMSServer.py" CONFIG section with a text editor (nano , vi, mcedit, etc..)
+
+3.) Make symlink "2nVoiceBlueSMSServer.sh" file to /etc/init.d/ ( ln -s /usr/local/bin/2nVoiceBlueSMSServer.sh /etc/init.d/ )
+
+4.) On Debian based systems run the command: "update-rc.d 2nVoiceBlueSMSServer.sh defaults" it will creates symlinks
+	to the default runlevels.
+	
+5.) Start/stop the server by hand: "/etc/init.d/2nVoiceBlueSMSServer.sh start"
+	(for debug purposes run the program in the foreground by: "/etc/init.d/2nVoiceBlueSMSServer.sh fg"
+
+-----------------------
+B.) FRONTEND ISTALL:
+-----------------------
+
+0.) Install Aapache 2.x anf PHP5 (on Debian: apt-get install php5 apache2)
+
+1.) Copy the "index.php", "jquery.min.js" and "jquery.textareaCounter.plugin.js" to /var/www/2nsms folder (or your httpdocs root)
+
+2.) Edit the "index.php" CONFIG section with a text editor (nano , vi, mcedit, etc..)
+
+3.) Check how it works with a browser: http://[server IP, e.g.: 127.0.0.1]/2nsms/
+

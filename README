@@ -1,0 +1,138 @@
+------------------------------------------
+Documentation for VoiceBlue 2n SMS Server v2.0
+------------------------------------------
+
+Full featured HTTP SMS server for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
+The server periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
+It communicates via /dev/ttyUSBx port with AT commands.
+The server also listens on a defined HTTP port and controllable via POST/GET calls. (In case of GET call the message shpold be URL encoded.)   
+The HTTP responses are simple XMLs for easy to use and parse.
+For details, control functions, output XML templates, please read the README document.
+There are a basic WEB frontend available at my project page for this server.
+
+Original manual of VoiceBlue modem:
+http://www.2n.cz/download/3/4/2NR_VoiceBlue_-_User_Manual.pdf
+
+dependencies:
+- Python 2.7.x
+- Python-Messaging https://github.com/pmarti/python-messaging
+- Python-serial 2.5 > http://sourceforge.net/projects/pyserial/files/pyserial/2.5/pyserial-2.5.tar.gz/download
+
+BASIC USAGE EXAMPLE:
+0.) edit config variables below (# CONFIG START section) only if necessary
+1.) start HTTP server on port: ./[program name] [server port] (default:8080) as root user!
+2.) sending SMS: use a HTTP browser to call the server via GET method: 
+	http://[host address:port]/?rcpt=[full tel. number of recipient]&msg=urlencode([155 character sms])&smsc=[our telco's sms center full number (with + and country code, eg: +36...)]
+3.) receiving SMS messages: http://[host address:port]/?action=listall
+
+Licensed under GPL v2: http://www.gnu.org/licenses/gpl-2.0.html 
+
+------------------------------------------
+DETAILED CONFIG
+------------------------------------------
+
+For configuration, please edit the 2nVoiceBlueSMSServer.py file "CONFIG section."
+
+SIMCARDSINUSE:	how many SIM card installed on yout device. (0,1,2,3)
+SQLITE_PATH:	the local SQLite database path, the server will creates it if not exist. The sent and received SMS-es stored here. 
+				IMPORTANT: the server deletes the SMS messages from the SIM cards after it fetched and stored in teh SQLite database.
+LOGFILE:		the detailed log output of the server
+SERPORT:		basic serial USB path root, without number! of the device, at startup, the server try to connect from ttyUSB[0] to ttyUSB[10]
+SERBAUD:		baud rate for 2n device, fixed : 921600, do not change it!
+PORT:			the HTTP server default port to listen on
+SMSC:			default telco's SMSC number. It can be pass via HTTP GET also, but you can set it up. Can be fetched from the SMS, Message settings, or from the Internet.
+SIMPOLLINTERVAL:	the server periodically polls the SIM cards in the device, fetches the SMS messages then stores in the local db, the poll interval in seconds
+
+------------------------------------------
+HTTP COMMUNICATION, GET/POST CALLS AND RESPONSES
+------------------------------------------
+
+--------------------------
+SMS SENDING via POST/GET:
+--------------------------
+example: http://127.0.0.1/?rcpt=+36120300001234&msg=tryitout
+
+rcpt:		recipient phone number
+msg:		SMS message body, max 155 chars, accents removed. To avoid encoding problems, it should be urlencoded in case of GET.
+smsc:		SIM's telco's SMS center number, not required if given at the config above.
+
+Response XML:
+-------------
+<response type="send">
+	<status>[OK|ERROR]</status>
+	<date>[datetime]</date> <-- datetime format: YYYY-MM-DD hh:mm:ss -->
+	<id>[individual SMS ID]</id>
+</response>
+
+--------------------------
+SMS FETCH via POST/GET:
+--------------------------
+example: http://127.0.0.1/?action=listall
+
+action:		listall		(list all plus deleted SMS messages stored locally)
+			list		(list only not deleted SMS messages)
+			listdel		(list deleted SMS)
+			listrec		(default / list only received - incoming - SMS messages)
+			listrecdel	(list deleted received messages)
+			listsent	(list sent  - outgoing - messages)
+			listsentdel	(list received deleted messages)
+			listqueue	(list queued messages for sending - not sent yet)
+			listerr		(list of messages with sending errors occured)
+
+Response XML:
+-------------
+<response type="receive">
+	<sms>
+		<id>[SHA1 hash id of SMS]</id>
+		<smsdate>[sent/received datetime]</smsdate>
+		<lastdate>[datetime of message modification - queued -> sent, error]</lastdate>
+		<cardnum>"[SIM card number: 0|1|2|3]</cardnum>
+		<fromnum>[sender number - only incoming messages | None]</fromnum>
+		<tonum>[recipient's number - only sent messages | None]</tonum>
+		<status>[queued | sent  | senderror | received]</status>
+		<deleted>[yes | no]</deleted>
+		<msg><![CDATA[ - message body - ]]></msg>
+	</sms>
+</response>
+
+--------------------------
+SMS DELETE via POST/GET:
+--------------------------
+example: http://127.0.0.1/?action=delete&id=[SMS id - hash]
+
+action:		delete
+id:			SHA1 hash (40 chars long ID)
+
+Response XML:
+-------------
+<response type="delete">
+	<status>[OK|ERROR]</status>
+	<date>[datetime]</date> <-- datetime format: YYYY-MM-DD hh:mm:ss -->
+	<id>[individual SMS ID]</id>
+</response>
+
+--------------------------
+TRUNCATE DELETED SMS FROM DB via POST/GET:
+--------------------------
+example: http://127.0.0.1/?action=truncate
+
+action:		truncate
+
+Response XML:
+-------------
+<response type="truncate">
+	<status>[OK|ERROR]</status>
+	<date>[datetime]</date> <-- datetime format: YYYY-MM-DD hh:mm:ss -->
+	<pcs>[number of truncated messages]</pcs>
+</response>
+
+
+--------------------------
+INSUFFICIENT RESPONSE:
+--------------------------
+<response type="error">
+	<error>insufficient request</error>
+</response>
+
+For install instructions please check INSTALL file.
+
