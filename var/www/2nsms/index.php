@@ -56,7 +56,7 @@ function Selector($order_name,$field_name,$title,$selected=false) {
 	} else {
 		$rtrn .= ' ';
 	}
-	$rtrn .= 'value="'.$field_name.''.$order.'">';
+	$rtrn .= 'value="'.$field_name.'">';
 	$rtrn .= $title;
 	$rtrn .= '</option>';
 	return $rtrn;
@@ -168,9 +168,7 @@ if ($smslist && !empty($smslist)){
 if (isset($_POST['numTextarea']) 
 	&& !empty($_POST['numTextarea']) 
 	&& strlen(trim($_POST['numTextarea'])) > 10
-	&& isset($_POST['msgTextarea']) 
-	&& !empty($_POST['msgTextarea'])
-	&& strlen(trim($_POST['msgTextarea'])) > 3 ){
+	&& isset($_POST['msgTextarea'])){
 
 	echo '<div class="overview">
 		SMS sending result

@@ -65,7 +65,7 @@ import signal
 
 
 #global info
-__version__ = "2.0"
+__version__ = "2.02"
 __all__ = ["Log","initSQLite","SQLiteClose","SQLiteExec","SQLiteQuery","phoneNumFormatter","USBSerialHandler","SMSRequestHandler","ThreadingHTTPServer"]
 __author__ = "Tamas TOBI <tamas.tobi@gmail.com>, Hungary"
 __copyright__ = "Copyright (C) Tamas Tobi 2012, License: GPL v2, http://www.gnu.org/licenses/gpl-2.0.html"
@@ -630,12 +630,14 @@ class SMSRequestHandler(BaseHTTPRequestHandler):
 			Log('SMSRequestHandler: getRequest : Exception, self.body:'+str(self.body))
 			return d
 			
-	def receiveSMS(self,rcpt,msg,smsc=''):
+	def receiveSMS(self,rcpt,msg='',smsc=''):
 		if not len(smsc):
 			smsc=SMSC
-		if not smsc or not rcpt or not msg:
+		if not smsc or not rcpt:
 			Log('SMSRequestHandler: processrequest ERROR: INCOMPLETE DATA! RCPT:'+rcpt+", MSG: "+msg+", SMSC: "+smsc)
 			return None
+		if not msg or not len(msg.strip()):
+			msg=''
 		h=hashlib.sha1()
 		h.update(str(time())+str(rcpt)+str(msg))
 		shahash=h.hexdigest()
@@ -762,7 +764,7 @@ class SMSRequestHandler(BaseHTTPRequestHandler):
 		rcpt=phoneNumFormatter(rcpt)
 		
 		#send sms
-		if rcpt and msg:
+		if rcpt:
 			self.receiveSMS(rcpt,msg,smsc)
 			return
 		#list all sms
