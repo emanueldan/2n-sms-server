@@ -33,7 +33,7 @@ function vphone($inp){
 	$var = str_split($v); 
 
 	$o='';
-	$inp=(string)$inp; 
+	$inp=trim((string)$inp); 
 
 	$inp=str_replace("'","",$inp);
 	$inp=str_replace('"',"",$inp);
@@ -188,7 +188,7 @@ if (isset($_POST['numTextarea'])
 			continue;
 		}
 		$vphone=vphone($phone);
-		if (!is_numeric($vphone) || strlen($vphone) < 9 || strlen($phone) > 30){
+		if (!is_numeric($vphone)){
 			echo '<font color="red"><b>Invalid number: ',$phone,' => ',$vphone,' !!! </b></font><br>';
 			flush();
 			sleep(1);

@@ -369,7 +369,7 @@ class USBSerialHandler():
 		if len(msg) > SMSLENGTH:
 			Log('createSMS cutted msg: '+msg)
 			msg=msg[0:SMSLENGTH]
-		Log('createSMS new msg: NUM: '+num+", MSG: "+msg+", SMSC: "+smsc+", LEN:"+str(len(msg))+", ID: "+shahash)
+		Log('createSMS new msg: NUM: '+num+", MSG:"+msg+", SMSC: "+smsc+", MSGLEN:"+str(len(msg))+", ID: "+shahash)
 		
 		#create sms format pdu
 		y=strftime("%Y", gmtime())
@@ -404,6 +404,7 @@ class USBSerialHandler():
 		#print "pdu:", tosend
 		
 		#try to send sms 5 times:
+		Log('createSMS: SMS SENDING, BODY: '+str(tosend))
 		msgsent=self.CommandSender(tosend,False,False,"smsout",20)
 		
 		#if not sent, put back to the queue:
