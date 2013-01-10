@@ -635,7 +635,7 @@ class SMSRequestHandler(BaseHTTPRequestHandler):
 		if not len(smsc):
 			smsc=SMSC
 		if not smsc or not rcpt:
-			Log('SMSRequestHandler: processrequest ERROR: INCOMPLETE DATA! RCPT:'+rcpt+", MSG: "+msg+", SMSC: "+smsc)
+			Log('SMSRequestHandler receiveSMS: processrequest ERROR: INCOMPLETE DATA! RCPT:'+rcpt+", MSG: "+msg+", SMSC: "+smsc)
 			return None
 		if not msg or not len(msg.strip()):
 			msg=''
@@ -662,7 +662,7 @@ class SMSRequestHandler(BaseHTTPRequestHandler):
 		rowid=SQLiteExec(qry,sqlobj)
 		SQLiteClose(sqlobj)
 		INQ.put_nowait([rcpt,msg,smsc,shahash])
-		Log('SMSRequestHaput_nowaitndler: processrequest : New message: RCPT:'+rcpt+", MSG: "+msg+", SMSC: "+smsc+", SQLROWID: "+str(rowid))
+		Log('SMSRequestHandler receiveSMS: processrequest : New message: RCPT:'+rcpt+", MSG: "+msg+", SMSC: "+smsc+", SQLROWID: "+str(rowid))
 		if rowid > 0:
 			self.wfile.write('<response type="send">'+NL+"<status>OK</status>"+NL+"<date>"+nowdate+"</date>"+NL+"<id>"+shahash+"</id>"+NL+"</response>"+NL)
 		else:
@@ -739,7 +739,7 @@ class SMSRequestHandler(BaseHTTPRequestHandler):
 		qry="DELETE FROM sms WHERE deleted='yes'"
 		rowid=SQLiteExec(qry,sqlobj)
 		SQLiteClose(sqlobj)
-		Log('truncateSMS: remove deleted SMSes, status: '+str(rowid))
+		Log('SMSRequestHandler truncateSMS: remove deleted SMSes, status: '+str(rowid))
 		if rowid > 0:
 			self.wfile.write('<response type="truncate">'+NL+"<status>OK</status>"+NL+"<date>"+nowdate+"</date>"+NL+"<pcs>"+str(rowid)+"</pcs>"+NL+"</response>"+NL)
 		else:
@@ -817,6 +817,7 @@ class SMSRequestHandler(BaseHTTPRequestHandler):
 			self.wfile.write('<response type="error">'+NL)
 			self.wfile.write('<error>insufficient request</error>'+NL)
 			self.wfile.write('</response>'+NL)
+			Log('SMSRequestHandler processrequest: insufficient request')
 		return
 
 
