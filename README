@@ -2,6 +2,10 @@
 Documentation for VoiceBlue 2n SMS Server v2.0
 ------------------------------------------
 
+Github repository:
+https://github.com/ttobi/2n-sms-server
+
+
 Full featured HTTP SMS server for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
 The server periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
 It communicates via /dev/ttyUSBx port with AT commands.
