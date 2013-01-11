@@ -64,19 +64,21 @@ function Selector($order_name,$field_name,$title,$selected=false) {
 
 //sms database actions
 $action = (isset($_GET['action']) && !empty($_GET['action'])) ? trim($_GET['action']) : "listrec";
+$mod = (isset($_GET['mod']) && !empty($_GET['mod'])) ? trim($_GET['mod']) : "";
 $_GET['action'] = $action;
 
 $smslist = false;
 
-if ($action == "delete"){
+if ($mod == "delete"){
 	$msgid = $_GET['id'];
-	$smslist = file_get_contents("http://".SMSSERVERIP.":".SMSSERVERPORT."/?action=".$action."&id=".$msgid);
-	header("Location: ./");
+	$smslist = file_get_contents("http://".SMSSERVERIP.":".SMSSERVERPORT."/?action=".$mod."&id=".$msgid);
+	header("Location: ./?action=".$action);
 }
-if ($action == "truncate"){
-	$smslist = file_get_contents("http://".SMSSERVERIP.":".SMSSERVERPORT."/?action=".$action);
-	header("Location: ./");
+if ($mod == "truncate"){
+	$smslist = file_get_contents("http://".SMSSERVERIP.":".SMSSERVERPORT."/?action=".$mod);
+	header("Location: ./?action=".$action);
 }
+
 $smslist = file_get_contents("http://".SMSSERVERIP.":".SMSSERVERPORT."/?action=".$action);
 if ($smslist && !empty($smslist)){
 	$xml = simplexml_load_string($smslist);
@@ -96,7 +98,7 @@ if ($smslist && !empty($smslist)){
 		$smstable.= '<td>'.$sms->status.'</td>';
 		$smstable.= '<td>'.$sms->cardnum.'</td>';
 		$smstable.= '<td>'.$sms->msg.'</td>';
-		$smstable.= '<td><a href="./?action=delete&id='.$sms->id.'">['.$sms->deleted.']</a></td>';
+		$smstable.= '<td><a href="./?action='.$action.'&id='.$sms->id.'&mod=delete">['.$sms->deleted.']</a></td>';
 		$smstable.= '</tr>';
 		$i++;
 	}
@@ -167,7 +169,7 @@ if ($smslist && !empty($smslist)){
 //sms sending 
 if (isset($_POST['numTextarea']) 
 	&& !empty($_POST['numTextarea']) 
-	&& strlen(trim($_POST['numTextarea'])) > 10
+	&& strlen(trim($_POST['numTextarea'])) > 3
 	&& isset($_POST['msgTextarea'])){
 
 	echo '<div class="overview">
@@ -231,7 +233,7 @@ echo Selector("action","listsentdel","Sent SMS - show deleted");
 echo Selector("action","listqueue","SMS queued for sending");
 echo Selector("action","listerr","SMS errors");
 ?>
-</select> <button type="button" onclick="window.location.href='./'">Page Refresh</button> <button type="button" onclick="window.location.href='./?action=truncate'">Truncate Deleted</button>
+</select> <button type="button" onclick="window.location.href='./?action=<?=$action?>'">Page Refresh</button> <button type="button" onclick="window.location.href='./?mod=truncate&action=<?=$action?>'">Truncate Deleted</button>
 </form>
 <br />
 <?=$smstable?>
