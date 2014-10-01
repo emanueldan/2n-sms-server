@@ -1,30 +1,38 @@
 ------------------------------------------
-Documentation for VoiceBlue 2n SMS Server v2.0
+Documentation for VoiceBlue 2n SMS Server v3.0 (telnet)
 ------------------------------------------
 
 Github repository:
 https://github.com/ttobi/2n-sms-server
 
 
-Full featured HTTP SMS server for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
-The server periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
-It communicates via /dev/ttyUSBx port with AT commands.
-The server also listens on a defined HTTP port and controllable via POST/GET calls. (In case of GET call the message shpold be URL encoded.)   
-The HTTP responses are simple XMLs for easy to use and parse.
-For details, control functions, output XML templates, please read the README document.
-There are a basic WEB frontend available at my project page for this server.
+Full featured HTTP SMS service for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
+Telnet or serial communication available.
 
-Original manual of VoiceBlue modem:
-http://www.2n.cz/download/3/4/2NR_VoiceBlue_-_User_Manual.pdf
+The service periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
+It can communicate via telnet, you can switch telnet off with USE_TELNET = False/True. If USE_TELNET = False, it will try to connect ONLY on serial ports.
+It can communicate via /dev/ttyUSBx port (older VoiceBlue devices, but telnet preferred).
 
-dependencies:
-- Python 2.7.x
+VoiceBlue AT commands reference:
+https://wiki.2n.cz/display/VBN30EN/4.2+AT+Interface
+
+DEPENDENCIES:
+- Python 2.7.x <
 - Python-Messaging https://github.com/pmarti/python-messaging
+
+PREFERRED way to install Python-messaging module:
+cd ~
+git clone https://github.com/pmarti/python-messaging.git
+cd python-messaging
+sudo python setup.py install 
+
+OPTIONAL:
+For serial communication:
 - Python-serial 2.5 > http://sourceforge.net/projects/pyserial/files/pyserial/2.5/pyserial-2.5.tar.gz/download
 
 BASIC USAGE EXAMPLE:
-0.) edit config variables below (# CONFIG START section) only if necessary
-1.) start HTTP server on port: ./[program name] [server port] (default:8080) as root user!
+0.) edit config variables below: # CONFIG START section
+1.) start HTTP server on port: ./[program name] [server port] (default:8080) (root user requitred ONLY for serial communictaions)
 2.) sending SMS: use a HTTP browser to call the server via GET method: 
 	http://[host address:port]/?rcpt=[full tel. number of recipient]&msg=urlencode([155 character sms])&smsc=[our telco's sms center full number (with + and country code, eg: +36...)]
 3.) receiving SMS messages: http://[host address:port]/?action=listall
@@ -41,11 +49,19 @@ SIMCARDSINUSE:	how many SIM card installed on yout device. (0,1,2,3)
 SQLITE_PATH:	the local SQLite database path, the server will creates it if not exist. The sent and received SMS-es stored here. 
 				IMPORTANT: the server deletes the SMS messages from the SIM cards after it fetched and stored in teh SQLite database.
 LOGFILE:		the detailed log output of the server
+LOG_TO_LOGFILE: 	if you need ONLY print to CLI, use False here
 SERPORT:		basic serial USB path root, without number! of the device, at startup, the server try to connect from ttyUSB[0] to ttyUSB[10]
 SERBAUD:		baud rate for 2n device, fixed : 921600, do not change it!
 PORT:			the HTTP server default port to listen on
 SMSC:			default telco's SMSC number. It can be pass via HTTP GET also, but you can set it up. Can be fetched from the SMS, Message settings, or from the Internet.
 SIMPOLLINTERVAL:	the server periodically polls the SIM cards in the device, fetches the SMS messages then stores in the local db, the poll interval in seconds
+#telnet settings
+USE_TELNET:			True: use telnet to connect VB device, it is the default, False: try serial ports
+TELNET_HOST:		telnet hostname or IP of VoiceBlue modem
+TELNET_PORT:		telnet port
+TELNET_USER:		Voice Blue modem user
+TELNET_PASSWORD		VoiceBlue modem password
+TELNET_TIMEOUT:		the telnet command timeout
 
 ------------------------------------------
 HTTP COMMUNICATION, GET/POST CALLS AND RESPONSES

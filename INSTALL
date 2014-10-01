@@ -1,9 +1,13 @@
 ------------------------------------------
-Installation instructions for VoiceBlue 2n SMS Server v2.0
+Installation instructions for VoiceBlue 2n SMS Server v3.0 Telnet version
 ------------------------------------------
 
 Do every step as root user (sudo su -)!
-The server need to be runs as root user because of the ttyUSB device read/write rights require it.
+
+OPTIONAL:
+The server needs to be run as root user because of the ttyUSB device read/write rights require it.
+If you use telnet mode, it doesn't need to be run with root user rights.
+
 You can setup as run the program as different user - not root - but you can add right to the log, sqlite, ttyusb paths 
 for that user also.
 

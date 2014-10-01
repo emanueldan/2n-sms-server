@@ -11,7 +11,7 @@
 
 ////////////////////////////////////////////////////
 // CONFIG
-define('WEBLOGPATH',"/var/www/sms/smssend.log"); 	//Logging path, www-data user can be write here
+define('WEBLOGPATH',"/var/www/2nsms/smssend.log"); 	//Logging path, www-data user can be write here
 define('SMSSERVERIP','127.0.0.1');					//The remote IP where the 2nVoiceBlueSMSServer runs
 define('SMSSERVERPORT','8080');						//2nVoiceBlueSMSServer remote PORT
 // CONFIG END

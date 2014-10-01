@@ -2,25 +2,37 @@
 # -*- coding: utf-8 -*-
 
 """
-Full featured HTTP SMS server for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
-The server periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
-It communicates via /dev/ttyUSBx port with AT commands.
-The server also listens on a defined HTTP port and controllable via POST/GET calls. (In case of GET call the message shpold be URL encoded.)   
-The HTTP responses are simple XMLs for easy to use and parse.
-For details, control functions, output XML templates, please read the README document.
-There are a basic WEB frontend available at my project page for this server.
+Full featured HTTP SMS service for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
+Telnet or serial communication available.
 
-Original manual of VoiceBlue modem:
-http://www.2n.cz/download/3/4/2NR_VoiceBlue_-_User_Manual.pdf
+The service periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
+It can communicate via telnet, you can switch telnet off with USE_TELNET = False/True. If USE_TELNET = False, it will try to connect ONLY on serial ports.
+It can communicate via /dev/ttyUSBx port (older VoiceBlue devices, but telnet preferred).
+
+The HTTP REST service listens on a defined HTTP port (default 8080) and controllable via simple POST/GET calls. (In case of GET call the message should be URL encoded.) The HTTP responses from the service are simple XMLs for easy to use and parse.
+For details, control functions, output XML templates, please read the README document.
+There is a basic Apache+PHP WEB frontend available to control the service.
+
+VoiceBlue AT commands reference:
+https://wiki.2n.cz/display/VBN30EN/4.2+AT+Interface
 
 DEPENDENCIES:
-- Python 2.7.x
+- Python 2.7.x <
 - Python-Messaging https://github.com/pmarti/python-messaging
+
+PREFERRED way to install Python-messaging module:
+cd ~
+git clone https://github.com/pmarti/python-messaging.git
+cd python-messaging
+sudo python setup.py install 
+
+OPTIONAL:
+For serial communication:
 - Python-serial 2.5 > http://sourceforge.net/projects/pyserial/files/pyserial/2.5/pyserial-2.5.tar.gz/download
 
 BASIC USAGE EXAMPLE:
-0.) edit config variables below (# CONFIG START section) only if necessary
-1.) start HTTP server on port: ./[program name] [server port] (default:8080) as root user!
+0.) edit config variables below: # CONFIG START section
+1.) start HTTP server on port: ./[program name] [server port] (default:8080) (root user requitred ONLY for serial communictaions)
 2.) sending SMS: use a HTTP browser to call the server via GET method: 
 	http://[host address:port]/?rcpt=[full tel. number of recipient]&msg=urlencode([155 character sms])&smsc=[our telco's sms center full number (with + and country code, eg: +36...)]
 3.) receiving SMS messages: http://[host address:port]/?action=listall
@@ -31,14 +43,31 @@ Licensed under GPL v2: http://www.gnu.org/licenses/gpl-2.0.html
 ################################
 # CONFIG START
 ################################
-SIMCARDSINUSE=[0,1,2,3] 					# maximum card number: 0,1,2,3 so four, if you just use #0, put: CARDSINUSE=[0], etc...
-SQLITE_PATH = "/var/lib/2nsmsdb/sms.db" 	# for store incoming, outgoing smses use SQLite lightweight database
+
+#on which SIM card will the incoming messages will be checked example: [0]: only the SIM 0 will be checked., [0,4]: 0 and 4th will be checked, max: [0,1,2,3]
+SIMCARDSINUSE=[0] 					# maximum card number: 0,1,2,3 so four, if you just use #0, put: CARDSINUSE=[0], etc...
+
+#file paths
+SQLITE_PATH = "/var/lib/2nsms/sms.db" 	# for store incoming, outgoing smses use SQLite lightweight database
 LOGFILE = "/var/log/2nsms.log" 				# logfile where the process will be log everything
-SERPORT = "/dev/ttyUSB"						# serial USB base location, the program will try open from ttyUSB0 to ttyUSB10
+LOG_TO_LOGFILE = True						#if you need ONLY print to CLI, use False
+
+#serial port settings, only necessary if you dont use telnet
+SERPORT = "/dev/ttyUSB"						# serial USB base location, the program will try open from ttyUSB0 to ttyUSB10, it is not necessary if you use Telnet
 SERBAUD = 921600 							# serial baud rate for 2n USB modem
 PORT=str(8080) 								# the default local HTTP port where the server will listen to if not given by startup parameter
-SMSC="+36209300099" 						# put here your default telco's SMS center's number, this would be the default if not given in HTTP request (default by the author: Telenor Hungary)
-SIMPOLLINTERVAL=15							#poll SIM cards for new messages every given seconds
+
+#smsc, please change it
+SMSC="2307200999" 							# put here your default telco's SMS center's number, this would be the default if not given in HTTP request (default by the author: Telenor Hungary)
+SIMPOLLINTERVAL=60							#poll SIM cards for new messages every given seconds
+
+#telnet settings
+USE_TELNET = True							#True: use telnet to connect VB device, it is the default, False: try serial ports
+TELNET_HOST = "192.168.1.250"	#telnet hostname or IP of VoiceBlue modem
+TELNET_PORT = 23							#telnet port
+TELNET_USER = "Admin"						#Voice Blue modem user
+TELNET_PASSWORD= "***"						#VoiceBlue modem password
+TELNET_TIMEOUT=60							#60 sec, the telnet command timeout
 ################################
 # CONFIG END
 # DO NOT EDIT BELOW CODE JUST IF 
@@ -62,13 +91,14 @@ import os
 import sqlite3
 import hashlib
 import signal
+import telnetlib
 
 
 #global info
-__version__ = "2.02"
-__all__ = ["Log","initSQLite","SQLiteClose","SQLiteExec","SQLiteQuery","phoneNumFormatter","USBSerialHandler","SMSRequestHandler","ThreadingHTTPServer"]
+__version__ = "3.00 (telnet version)"
+__all__ = ["Log","initSQLite","SQLiteClose","SQLiteExec","SQLiteQuery","phoneNumFormatter","VoiceBlueCommunicationHandler","SMSRequestHandler","ThreadingHTTPServer"]
 __author__ = "Tamas TOBI <tamas.tobi@gmail.com>, Hungary"
-__copyright__ = "Copyright (C) Tamas Tobi 2012, License: GPL v2, http://www.gnu.org/licenses/gpl-2.0.html"
+__copyright__ = "Copyright (C) Tamas Tobi 2014, License: GPL v2, http://www.gnu.org/licenses/gpl-2.0.html"
 
 #######################################################
 ## global variables, DO NOT modify them!!!!
@@ -88,14 +118,41 @@ logging.basicConfig(level=logging.DEBUG,
 					filemode='a'
 )
 
+###############################
+## common functions definitions
+###############################
+def Log(*logmsg):
+	logmsg=map(str,logmsg)
+	logmsg=" ".join(logmsg)
+	if "#NOPRINT#" not in logmsg:
+		try:
+			print "Log: %s %s %s" % (ctime(), "\t", logmsg)
+			sys.stdout.flush()
+		except:
+			pass
+	if "#NOPRINT#" in logmsg:
+		logmsg=logmsg.replace("#NOPRINT#","")
+	if LOG_TO_LOGFILE:
+		try:
+			logging.error(logmsg)
+		except Exception, e:
+			pass
+			
 #import 3rd party modules:
 try:
 	from messaging.sms import SmsSubmit,SmsDeliver
-	import serial
 except Exception,e:
-	Log("Cannot import 3rd party modules, sysexit. ",e)
+	Log("Cannot import 3rd party SMS messaging modules, sysexit. ",e)
 	NEND=False
 	sys.exit(1)
+
+if not USE_TELNET:
+	try:
+		import serial
+	except Exception,e:
+		Log("Cannot import 3rd party serial handler modules, please install them or switch USE_TELNET, sysexit. ",e)
+		NEND=False
+		sys.exit(1)
 
 ###############################
 #check CLI arguments
@@ -109,26 +166,6 @@ if PORT == "--help" or PORT == "-h":
 	print USAGE
 	sys.exit(1)
 
-###############################
-## common functions definitions
-###############################
-def Log(logmsg,ex="",p=True):
-	logmsg=str(logmsg)
-	if (p):
-		try:
-			print "Log: %s %s %s %s" % (ctime(), "\t", logmsg, str(ex))
-		except:
-			pass
-	try:
-		if len(str(ex)) > 0:
-			logging.debug(logmsg+", "+str(ex))
-		else:
-			logging.debug(logmsg)
-	except Exception, e:
-		try:
-			print logmsg, str(ex), "Log Exception:",str(e)
-		except:
-			pass
 
 def initSQLite(needobj=None):
 	try:
@@ -220,12 +257,21 @@ def phoneNumFormatter(inp):
 ###############################
 ## Class definitions
 ###############################
-class USBSerialHandler():
+class VoiceBlueCommunicationHandler:
 	def __init__(self):
+		#ports
 		self.serialport=None
 		self.serialportpath=None
-		self.initSerialPort()
-		Thread(None,self.SerialControllerThread,None,()).start()
+		self.telnetconn=None
+		
+		#init connection
+		if not USE_TELNET:
+			self.initSerialPort()
+		else:
+			self.initTelnetConnection()
+		
+		#start thread
+		Thread(None,self.VBControllerThread,None,()).start()
 
 	def initSerialPort(self):
 		ser = serial.Serial()
@@ -271,27 +317,46 @@ class USBSerialHandler():
 			return False
 
 	def CommandSender(self,tosend=None,debug=None,needval=None,assertval='',waitsec=1):
-		if not self.serialport:
-			self.initSerialPort()
-		if self.serialport:
-			if not self.serialport.isOpen():
+		if not USE_TELNET:
+			if not self.serialport:
 				self.initSerialPort()
-		result=None
-		if tosend:
-			if debug:
-				Log("CommandSender tosend: "+str(tosend))
-			self.sendCommand("AT",False,needval,'OK',waitsec)
-			self.sendCommand("AT!G=55",False,needval,'OK',waitsec)
-			self.sendCommand("AT!G=A6",False,needval,'OK',waitsec)
-			result=self.sendCommand(tosend,debug,needval,assertval,waitsec)
-			self.sendCommand("AT!G=55",False,needval,'OK',waitsec)
-		if result:
-			if needval:
-				return result
+			if self.serialport:
+				if not self.serialport.isOpen():
+					self.initSerialPort()
+			result=None
+			if tosend:
+				if debug:
+					Log("CommandSender tosend: "+str(tosend))
+				self.sendCommand("AT",False,needval,'OK',waitsec)
+				self.sendCommand("AT!G=55",False,needval,'OK',waitsec)
+				self.sendCommand("AT!G=A6",False,needval,'OK',waitsec)
+				result=self.sendCommand(tosend,debug,needval,assertval,waitsec)
+				self.sendCommand("AT!G=55",False,needval,'OK',waitsec)
+			if result:
+				if needval:
+					return result
+				else:
+					return True
 			else:
-				return True
+				return False
 		else:
-			return False
+			self.initTelnetConnection()
+			result=None
+			if tosend:
+				if debug:
+					Log("CommandSender (telnet) tosend: "+str(tosend))
+				self.sendTelnetCommand("AT",False,needval,'OK',waitsec)
+				self.sendTelnetCommand("AT!G=55",False,needval,'OK',waitsec)
+				self.sendTelnetCommand("AT!G=A6",False,needval,'OK',waitsec)
+				result=self.sendTelnetCommand(tosend,debug,needval,assertval,waitsec)
+				self.sendTelnetCommand("AT!G=55",False,needval,'OK',waitsec)
+			if result:
+				if needval:
+					return result
+				else:
+					return True
+			else:
+				return False
 
 	def readSerial(self,debug=None,needval=None,assertval='',waitsec=1):
 		buffer = ''
@@ -327,6 +392,41 @@ class USBSerialHandler():
 				return buffer
 			else:
 				return False
+				
+	def readTelnet(self,debug=None,needval=None,assertval='',waitsec=1):
+		buffer = ''
+		z=0
+		while NEND:
+			r=self.telnetconn.read_very_eager()
+			if debug:
+				print str(z)+": readTelnet debug: "+str(r)
+			buffer += r
+			if "smserr" in buffer:
+				Log("readTelnet buffer (while) SMS ERROR: "+str(buffer))
+				return False
+			if assertval in buffer and buffer[-2:] == NL and not debug:
+				### Log("readSerial buffer asserted (while): "+str(buffer))
+				if needval:
+					return buffer
+				else:
+					return True
+			if z >= waitsec*10:
+				break
+			z+=1
+			sleep(0.1)
+		if len(buffer):
+			if assertval in buffer and buffer[-2:] == NL and not debug:
+				Log("readTelnet buffer: "+str(buffer))
+				if needval:
+					return buffer
+				else:
+					return True
+		else:
+			Log("readTelnet buffer was empty.")
+			if needval:
+				return buffer
+			else:
+				return False
 
 	def sendCommand(self,cmd,debug=None,needval=None,assertval='',waitsec=1):
 		if debug:
@@ -343,6 +443,17 @@ class USBSerialHandler():
 		except Exception,e:
 			Log("sendCommand Exception:",e)
 			return False
+			
+	def sendTelnetCommand(self,cmd,debug=None,needval=None,assertval='',waitsec=1):
+		if debug:
+			print "sendTelnetCommand debug: "+cmd
+		try:
+			self.telnetconn.write(cmd + NL)
+			result=self.readTelnet(debug,needval,assertval,waitsec)
+			return result
+		except Exception,e:
+			Log("sendTelnetCommand Exception:",e)
+			return False
 
 	def createSMS(self,num,msg,smsc,shahash):
 		num=str(strip(num))
@@ -352,8 +463,8 @@ class USBSerialHandler():
 		### Log('createSMS new msg (0): NUM: '+num+", MSG: "+msg+", SMSC: "+smsc+", LEN:"+str(len(msg))+", HASH: "+shahash)
 		if smsc[0] != "+" and smsc[0] != "0":
 			smsc = "+"+smsc
-		if num[0] != "0" and num[0] != "+":
-			num = "+"+num
+		#if num[0] != "0" and num[0] != "+":
+		#	num = "+"+num
 		### Log('createSMS new msg (1): NUM: '+num+", MSG: "+msg+", SMSC: "+smsc+", LEN:"+str(len(msg))+", HASH: "+shahash)
 		
 		#reaplace unusual characters and white spaces
@@ -369,7 +480,7 @@ class USBSerialHandler():
 		if len(msg) > SMSLENGTH:
 			Log('createSMS cutted msg: '+msg)
 			msg=msg[0:SMSLENGTH]
-		Log('createSMS new msg: NUM: '+num+", MSG:"+msg+", SMSC: "+smsc+", MSGLEN:"+str(len(msg))+", ID: "+shahash)
+		Log('	: NUM: '+num+", MSG:"+msg+", SMSC: "+smsc+", MSGLEN:"+str(len(msg))+", ID: "+shahash)
 		
 		#create sms format pdu
 		y=strftime("%Y", gmtime())
@@ -540,7 +651,7 @@ class USBSerialHandler():
 						continue
 					self.fetchSMS(cardnum,smsnum)
 
-	def SerialControllerThread(self):
+	def VBControllerThread(self):
 		global NEND
 		z=0
 		while NEND:
@@ -552,6 +663,7 @@ class USBSerialHandler():
 				print item
 			if not item:
 				if z >= SIMPOLLINTERVAL:
+					Log("Chek incoming....")
 					self.checkNewSMSes()
 					z=0
 				z+=1
@@ -573,6 +685,47 @@ class USBSerialHandler():
 			#	continue
 		NEND=False
 		sys.exit(1)
+		
+	def initTelnetConnection(self):
+		if self.telnetconn:
+			self.closeTelnetConn()
+		Log("initTelnetConnection...")
+		getStatusCommand = "AT"
+		Log("initTelnetConnection, try to connect:",TELNET_HOST,TELNET_PORT,TELNET_TIMEOUT)
+		self.telnetconn = telnetlib.Telnet(TELNET_HOST,TELNET_PORT,TELNET_TIMEOUT)
+		#Log("initTelnetConnection, connection OK:",self.telnetconn)
+		self.telnetconn.read_until("Login: ")
+		self.telnetconn.write(TELNET_USER + NL)
+		#Log("initTelnetConnection sent user data...")
+		self.telnetconn.read_until("Password: ")
+		self.telnetconn.write(TELNET_PASSWORD + NL)
+		#Log("initTelnetConnection sent password data...")
+		self.telnetconn.read_until("OK")
+		self.telnetconn.write(getStatusCommand + NL)
+		#Log("initTelnetConnection sent status command, wait response...",getStatusCommand)
+		while True:
+			r=self.telnetconn.read_very_eager()
+			if "OK" in r:
+				break
+			else:
+				sleep(0.5)
+		Log("initTelnetConnection: OK.")
+
+	def closeTelnetConn(self):
+		try:
+			self.telnetconn.close()
+		except:
+			pass
+		try:
+			self.telnetconn.close()
+		except:
+			pass
+		try:
+			self.telnetconn = None
+		except:
+			pass
+		sleep(1)
+		Log("closeTelnetConn: telnet conn closed, ",self.telnetconn)
 
 class SMSRequestHandler(BaseHTTPRequestHandler):
 	
@@ -862,7 +1015,7 @@ if __name__=="__main__":
 		NEND=False
 		sys.exit(1)
 	
-	serhandler=USBSerialHandler()
+	serhandler=VoiceBlueCommunicationHandler()
 	Thread(target=__serve_on_port, args=[PORT]).start()
 	Log("Server listens on HTTP PORT: "+str(PORT))
 	
