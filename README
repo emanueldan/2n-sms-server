@@ -1,23 +1,19 @@
-------------------------------------------
-Documentation for VoiceBlue 2n SMS Server v3.0 (telnet)
-------------------------------------------
-
-Github repository:
-https://github.com/ttobi/2n-sms-server
-
-
-Full featured HTTP SMS service for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
-Telnet or serial communication available.
+Full featured HTTP SMS service for 2n VoiceBlue (Next) GSM VoIP adapters with sending and receivig capabilities.
+Telnet or serial communications are available.
 
 The service periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
-It can communicate via telnet, you can switch telnet off with USE_TELNET = False/True. If USE_TELNET = False, it will try to connect ONLY on serial ports.
-It can communicate via /dev/ttyUSBx port (older VoiceBlue devices, but telnet preferred).
+It can communicate via telnet, you can switch telnet off with USE_TELNET = False/True. 
+If USE_TELNET = False, it will try to connect ONLY on serial (ttyUSB) ports (older VoiceBlue devices, but telnet preferred).
+
+The HTTP REST service listens on a defined HTTP port (default 8080) and controllable via simple POST/GET calls. (In case of GET call the message should be URL encoded.) The HTTP responses from the service are simple XMLs for easy to use and parse.
+For details, control functions, output XML templates, please read the README document.
+There is a basic Apache+PHP WEB frontend available to control the service.
 
 VoiceBlue AT commands reference:
 https://wiki.2n.cz/display/VBN30EN/4.2+AT+Interface
 
 DEPENDENCIES:
-- Python 2.7.x <
+- Python > 2.7.x
 - Python-Messaging https://github.com/pmarti/python-messaging
 
 PREFERRED way to install Python-messaging module:
@@ -62,6 +58,8 @@ TELNET_PORT:		telnet port
 TELNET_USER:		Voice Blue modem user
 TELNET_PASSWORD		VoiceBlue modem password
 TELNET_TIMEOUT:		the telnet command timeout
+
+USE_GSM_MODEM: True/False, workaround for CMS: 500 internal error, use GSM modem directly, workaround for Voice Blue Next devices, keep it True
 
 ------------------------------------------
 HTTP COMMUNICATION, GET/POST CALLS AND RESPONSES
@@ -155,4 +153,3 @@ INSUFFICIENT RESPONSE:
 </response>
 
 For install instructions please check INSTALL file.
-

@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Full featured HTTP SMS service for 2n VoiceBlue GSM VoIP adapters with sending and receivig capabilities.
-Telnet or serial communication available.
+Full featured HTTP SMS service for 2n VoiceBlue (Next) GSM VoIP adapters with sending and receivig capabilities.
+Telnet or serial communications are available.
 
 The service periodically checks the incoming SMS-es on the VoiceBlue adapter then stores in a local SQLite database.
-It can communicate via telnet, you can switch telnet off with USE_TELNET = False/True. If USE_TELNET = False, it will try to connect ONLY on serial ports.
-It can communicate via /dev/ttyUSBx port (older VoiceBlue devices, but telnet preferred).
+It can communicate via telnet, you can switch telnet off with USE_TELNET = False/True. 
+If USE_TELNET = False, it will try to connect ONLY on serial (ttyUSB) ports (older VoiceBlue devices, but telnet preferred).
 
 The HTTP REST service listens on a defined HTTP port (default 8080) and controllable via simple POST/GET calls. (In case of GET call the message should be URL encoded.) The HTTP responses from the service are simple XMLs for easy to use and parse.
 For details, control functions, output XML templates, please read the README document.
@@ -45,10 +45,10 @@ Licensed under GPL v2: http://www.gnu.org/licenses/gpl-2.0.html
 ################################
 
 #on which SIM card will the incoming messages will be checked example: [0]: only the SIM 0 will be checked., [0,4]: 0 and 4th will be checked, max: [0,1,2,3]
-SIMCARDSINUSE=[0] 					# maximum card number: 0,1,2,3 so four, if you just use #0, put: CARDSINUSE=[0], etc...
+SIMCARDSINUSE=[0,1,2,3] 					# maximum card number: 0,1,2,3 so four, if you just use #0, put: CARDSINUSE=[0], etc...
 
 #file paths
-SQLITE_PATH = "/var/lib/2nsms/sms.db" 	# for store incoming, outgoing smses use SQLite lightweight database
+SQLITE_PATH = "/var/lib/2nsms/sms.db" 		# for store incoming, outgoing smses use SQLite lightweight database
 LOGFILE = "/var/log/2nsms.log" 				# logfile where the process will be log everything
 LOG_TO_LOGFILE = True						#if you need ONLY print to CLI, use False
 
@@ -58,16 +58,20 @@ SERBAUD = 921600 							# serial baud rate for 2n USB modem
 PORT=str(8080) 								# the default local HTTP port where the server will listen to if not given by startup parameter
 
 #smsc, please change it
-SMSC="2307200999" 							# put here your default telco's SMS center's number, this would be the default if not given in HTTP request (default by the author: Telenor Hungary)
-SIMPOLLINTERVAL=60							#poll SIM cards for new messages every given seconds
+SMSC="+2307200999" 							# put here your default telco's SMS center's number, this would be the default if not given in HTTP request (default by the author: Telenor Hungary)
+SIMPOLLINTERVAL=30							#poll SIM cards for new messages every given seconds
 
 #telnet settings
 USE_TELNET = True							#True: use telnet to connect VB device, it is the default, False: try serial ports
-TELNET_HOST = "192.168.1.250"	#telnet hostname or IP of VoiceBlue modem
+TELNET_HOST = "192.168.1.250"				#telnet hostname or IP of VoiceBlue modem
 TELNET_PORT = 23							#telnet port
 TELNET_USER = "Admin"						#Voice Blue modem user
-TELNET_PASSWORD= "***"						#VoiceBlue modem password
+TELNET_PASSWORD= "**"						#VoiceBlue modem password
 TELNET_TIMEOUT=60							#60 sec, the telnet command timeout
+
+#use internal GSM modem instead of VB interface (workaround for VB Next!)
+USE_GSM_MODEM = True						#workaround for Voiceble Next CMS: 500 internal error , use GSM modem directly, text mode
+
 ################################
 # CONFIG END
 # DO NOT EDIT BELOW CODE JUST IF 
@@ -92,10 +96,10 @@ import sqlite3
 import hashlib
 import signal
 import telnetlib
-
+from random import randint
 
 #global info
-__version__ = "3.00 (telnet version)"
+__version__ = "3.10 (telnet version)"
 __all__ = ["Log","initSQLite","SQLiteClose","SQLiteExec","SQLiteQuery","phoneNumFormatter","VoiceBlueCommunicationHandler","SMSRequestHandler","ThreadingHTTPServer"]
 __author__ = "Tamas TOBI <tamas.tobi@gmail.com>, Hungary"
 __copyright__ = "Copyright (C) Tamas Tobi 2014, License: GPL v2, http://www.gnu.org/licenses/gpl-2.0.html"
@@ -259,19 +263,53 @@ def phoneNumFormatter(inp):
 ###############################
 class VoiceBlueCommunicationHandler:
 	def __init__(self):
-		#ports
+		#class variables
 		self.serialport=None
 		self.serialportpath=None
 		self.telnetconn=None
+		self.GSMModules=[]
 		
 		#init connection
 		if not USE_TELNET:
 			self.initSerialPort()
-		else:
-			self.initTelnetConnection()
+		
+		self.initTelnetConnection()
+		self.initGSMModules()
 		
 		#start thread
 		Thread(None,self.VBControllerThread,None,()).start()
+		
+	def initGSMModules(self):
+		global NEND
+		self.sendTelnetCommand("AT",False,False,'OK')
+		cmd="AT&QALL"
+		self.telnetconn.write(cmd + NL)
+		buffer = ''
+		z=0
+		lim=100
+		while NEND:
+			r=self.telnetconn.read_very_eager()
+			if r:
+				buffer+=r
+			if "OK" in buffer:
+				break
+			z+=1
+			if z >= lim:
+				break
+			sleep(0.1)
+		a=buffer.split(NL)
+		Log("initGSMModules, modemstatus:: ",buffer)
+		for l in a:
+			if l.startswith("#"):
+				if ("Sim-err" not in l) and ("dBm" in l):
+					mod=int(l[2:3])
+					if mod not in self.GSMModules:
+						self.GSMModules.append(mod)
+		Log("initGSMModules: available:",len(self.GSMModules),self.GSMModules)
+		if not len(self.GSMModules):
+			Log("ERROR: No GSM modules found in use!")
+			NEND=False
+			sys.exit(1)
 
 	def initSerialPort(self):
 		ser = serial.Serial()
@@ -340,14 +378,16 @@ class VoiceBlueCommunicationHandler:
 			else:
 				return False
 		else:
-			self.initTelnetConnection()
 			result=None
 			if tosend:
 				if debug:
 					Log("CommandSender (telnet) tosend: "+str(tosend))
-				self.sendTelnetCommand("AT",False,needval,'OK',waitsec)
+				self.initTelnetConnection()
 				self.sendTelnetCommand("AT!G=55",False,needval,'OK',waitsec)
 				self.sendTelnetCommand("AT!G=A6",False,needval,'OK',waitsec)
+				if USE_GSM_MODEM:
+					for h in self.GSMModules:
+						self.sendTelnetCommand("AT&G0"+str(h)+"=AT+CMGF=0",False,False,'OK')
 				result=self.sendTelnetCommand(tosend,debug,needval,assertval,waitsec)
 				self.sendTelnetCommand("AT!G=55",False,needval,'OK',waitsec)
 			if result:
@@ -450,6 +490,8 @@ class VoiceBlueCommunicationHandler:
 		try:
 			self.telnetconn.write(cmd + NL)
 			result=self.readTelnet(debug,needval,assertval,waitsec)
+			if result == False:
+				Log("sendTelnetCommand ERROR: ",cmd)
 			return result
 		except Exception,e:
 			Log("sendTelnetCommand Exception:",e)
@@ -459,13 +501,12 @@ class VoiceBlueCommunicationHandler:
 		num=str(strip(num))
 		msg=str(strip(msg))
 		smsc=str(strip(smsc))
-		
 		### Log('createSMS new msg (0): NUM: '+num+", MSG: "+msg+", SMSC: "+smsc+", LEN:"+str(len(msg))+", HASH: "+shahash)
 		if smsc[0] != "+" and smsc[0] != "0":
 			smsc = "+"+smsc
-		#if num[0] != "0" and num[0] != "+":
-		#	num = "+"+num
-		### Log('createSMS new msg (1): NUM: '+num+", MSG: "+msg+", SMSC: "+smsc+", LEN:"+str(len(msg))+", HASH: "+shahash)
+		if num[0] != "0" and num[0] != "+":
+			num = "+"+num
+		Log('createSMS new msg (1): NUM: '+num+", MSG: "+msg+", SMSC: "+smsc+", LEN:"+str(len(msg))+", HASH: "+shahash)
 		
 		#reaplace unusual characters and white spaces
 		msg=msg.replace("*","")
@@ -481,42 +522,65 @@ class VoiceBlueCommunicationHandler:
 			Log('createSMS cutted msg: '+msg)
 			msg=msg[0:SMSLENGTH]
 		Log('	: NUM: '+num+", MSG:"+msg+", SMSC: "+smsc+", MSGLEN:"+str(len(msg))+", ID: "+shahash)
-		
-		#create sms format pdu
-		y=strftime("%Y", gmtime())
-		sms = SmsSubmit(num, msg)
-		
-		#validity= end of this year
-		sms.validity = datetime(int(y)+1, 12, 31, 23, 59, 59)
-		sms.csca = smsc
-		pdu = sms.to_pdu()[0]
-		
-		s=pdu.pdu
-		#print s
-		
-		##calculate checksum
-		l=0
-		sum=0
-		for i in xrange(len(s)):
-			if (i == 0 or i%2 == 0):
-				j=i+2
-				h= s[i:j]
-				#print "hex:",h
-				ih=int(h,16)
-				#print "int:",str(ih)
-				sum=(sum+ih) % 256
-			l+=1
-		fulllength=str((l/2)-8)
-		chsum=str(hex(sum))[2:]
-		#print "length: ",fulllength
-		#print "sum: ",chsum
+			
+		if not USE_GSM_MODEM:
+			
+			#create sms format pdu
+			y=strftime("%Y", gmtime())
+			sms = SmsSubmit(num, msg)
+			
+			#validity= end of this year
+			sms.validity = datetime(int(y)+1, 12, 31, 23, 59, 59)
+			sms.csca = smsc
+			pdu = sms.to_pdu()[0]
+			
+			s=pdu.pdu
+			#print s
+			
+			##calculate checksum
+			l=0
+			sum=0
+			for i in xrange(len(s)):
+				if (i == 0 or i%2 == 0):
+					j=i+2
+					h= s[i:j]
+					#print "hex:",h
+					ih=int(h,16)
+					#print "int:",str(ih)
+					sum=(sum+ih) % 256
+				l+=1
+			fulllength=str((l/2)-8)
+			chsum=str(hex(sum))[2:]
+			#print "length: ",fulllength
+			#print "sum: ",chsum
 
-		tosend="AT^SM=32,"+fulllength+","+s+","+chsum
-		#print "pdu:", tosend
-		
-		#try to send sms 5 times:
-		Log('createSMS: SMS SENDING, BODY: '+str(tosend))
-		msgsent=self.CommandSender(tosend,False,False,"smsout",20)
+			tosend="AT^SM=32,"+fulllength+","+s+","+chsum
+			#print "pdu:", tosend
+			
+			#try to send sms 5 times:
+			Log('createSMS: SMS SENDING, BODY: '+str(tosend))
+			msgsent=self.CommandSender(tosend,False,False,"smsout",20)
+		else:
+			if not len(self.GSMModules):
+				Log("ERROR! No GSM module found! Message not sent.")
+				return
+			r=randint(0,(len(self.GSMModules)-1))
+			usemod=str(self.GSMModules[r])
+			
+			self.initTelnetConnection()
+			self.sendTelnetCommand("AT",False,False,'OK')
+			self.sendTelnetCommand("AT!G=55",False,False,'OK')
+			self.sendTelnetCommand("AT!G=A6",False,False,'OK')
+			self.sendTelnetCommand("AT&G0"+usemod+"=AT+CMGF=1",False,False,'OK')
+			#1
+			tosend='AT&G0'+usemod+'=AT+CMGS="%s"' % num
+			result=self.sendTelnetCommand(tosend,False,True,"++g00")
+			Log("USE_GSM_MODEM, step1: ",result)
+			#2
+			tosend=msg+'\x1A'
+			msgsent=self.sendTelnetCommand(tosend,False,True,"OK")
+			Log("USE_GSM_MODEM, step2: ",msgsent)
+			self.sendTelnetCommand("AT!G=55",False,False,'OK')
 		
 		#if not sent, put back to the queue:
 		if not msgsent:
@@ -557,7 +621,29 @@ class VoiceBlueCommunicationHandler:
 		if sms:
 			sender = sms.data['number']
 			msg = sms.data['text']
+			msg = msg.strip()
+			
+			#print msg
+			
+			try:
+				msg.encode('utf-8')
+			except:
+				Log("processSMS msg ENCodeerror, skip:",msg.decode('utf-8', 'ignore').encode('utf-8'))
+				return True
+			
+			#for unicode testing
+			#################
+			#try:
+			#	msg.decode('utf-8')
+			#except:
+			#	Log("processSMS msg DECodeerror, skip:",msg.encode('utf-8'))
+			#	return False
+			#################
+			
 			msg = msg.encode('utf-8')
+			Log("New incoming SMS: ",sender,msg)
+			
+			
 			smsdate = sms.data['date'].strftime('%Y-%m-%d %H:%M:%S')
 			h=hashlib.sha1()
 			h.update(str(smsdate)+str(sender)+str(msg))
@@ -623,7 +709,11 @@ class VoiceBlueCommunicationHandler:
 			
 
 	def checkNewSMSes(self):
-		for cnum in SIMCARDSINUSE:
+		if USE_GSM_MODEM:
+			csim=self.GSMModules
+		else:
+			csim=SIMCARDSINUSE
+		for cnum in csim:
 			cnum=str(cnum)
 			tosend = "AT^SX="+cnum
 			smses=self.CommandSender(tosend,False,True,(cnum+",0,0,255"),20)
@@ -632,6 +722,7 @@ class VoiceBlueCommunicationHandler:
 			else:
 				Log("checkNewSMSes ERROR: "+str(smses))
 				return False
+			Log((len(smsary)-3), "new SMS.")
 			for sms in smsary:
 				if tosend not in sms:
 					if "*smsinc: " not in sms:
@@ -663,7 +754,7 @@ class VoiceBlueCommunicationHandler:
 				print item
 			if not item:
 				if z >= SIMPOLLINTERVAL:
-					Log("Chek incoming....")
+					Log("Check incoming SMS ...")
 					self.checkNewSMSes()
 					z=0
 				z+=1
@@ -683,12 +774,15 @@ class VoiceBlueCommunicationHandler:
 			#	Log('SMSQThread Exception:',e)
 			#	sleep(1)
 			#	continue
+		self.closeTelnetConn()
 		NEND=False
 		sys.exit(1)
 		
 	def initTelnetConnection(self):
 		if self.telnetconn:
-			self.closeTelnetConn()
+			test=self.sendTelnetCommand("AT",False,True,'OK',5)
+			if 'OK' in test:
+				return
 		Log("initTelnetConnection...")
 		getStatusCommand = "AT"
 		Log("initTelnetConnection, try to connect:",TELNET_HOST,TELNET_PORT,TELNET_TIMEOUT)
@@ -709,7 +803,8 @@ class VoiceBlueCommunicationHandler:
 				break
 			else:
 				sleep(0.5)
-		Log("initTelnetConnection: OK.")
+		#use gsm modems
+		Log("initTelnetConnection: connected.")
 
 	def closeTelnetConn(self):
 		try:
@@ -726,6 +821,7 @@ class VoiceBlueCommunicationHandler:
 			pass
 		sleep(1)
 		Log("closeTelnetConn: telnet conn closed, ",self.telnetconn)
+		
 
 class SMSRequestHandler(BaseHTTPRequestHandler):
 	

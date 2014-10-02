@@ -1,0 +1,20 @@
+3.10 (2014-10-02)
+-----------------
+- fixed some unicode errors
+- workaround for Voice Blue Next SMS sending by using GSM modems directly
+- fixed Voice Blue next SMS receiving
+- internal GSM modems status
+- random outgoing SMS sending over accessible modems
+- fix telnet init and connection keepalive
+- speed up operations by re-using telnet connection if available
+
+3.0 (2014-10-01)
+-----------------
+- added telnet connection capabilities
+
+2.0 (2013-01-30)
+-----------------
+- initial github release
+- only ttyUSB or serial connection available
+- basic web interface (PHP)
+

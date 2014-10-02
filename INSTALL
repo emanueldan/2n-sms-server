@@ -1,8 +1,15 @@
 ------------------------------------------
-Installation instructions for VoiceBlue 2n SMS Server v3.0 Telnet version
+Installation instructions for VoiceBlue 2n SMS Server v3.10 Telnet version
 ------------------------------------------
+DEPENDENCIES:
+- Python > 2.7.x
+- Python-Messaging https://github.com/pmarti/python-messaging
 
-Do every step as root user (sudo su -)!
+PREFERRED way to install Python-messaging module:
+cd ~
+git clone https://github.com/pmarti/python-messaging.git
+cd python-messaging
+sudo python setup.py install 
 
 OPTIONAL:
 The server needs to be run as root user because of the ttyUSB device read/write rights require it.
