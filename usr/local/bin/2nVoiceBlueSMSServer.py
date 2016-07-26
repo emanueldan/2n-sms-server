@@ -99,7 +99,7 @@ import telnetlib
 from random import randint
 
 #global info
-__version__ = "3.10 (telnet version)"
+__version__ = "3.20 (telnet version)"
 __all__ = ["Log","initSQLite","SQLiteClose","SQLiteExec","SQLiteQuery","phoneNumFormatter","VoiceBlueCommunicationHandler","SMSRequestHandler","ThreadingHTTPServer"]
 __author__ = "Tamas TOBI <tamas.tobi@gmail.com>, Hungary"
 __copyright__ = "Copyright (C) Tamas Tobi 2014, License: GPL v2, http://www.gnu.org/licenses/gpl-2.0.html"
@@ -510,6 +510,10 @@ class VoiceBlueCommunicationHandler:
 		
 		#reaplace unusual characters and white spaces
 		msg=msg.replace("*","")
+		msg=msg.replace("[","")
+		msg=msg.replace("]","")
+		msg=msg.replace("/","")
+		msg=msg.replace("\"," ")
 		msg=msg.replace("\t"," ")
 		msg=msg.replace("\n"," ")
 		while True:
