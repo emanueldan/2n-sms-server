@@ -513,7 +513,7 @@ class VoiceBlueCommunicationHandler:
 		msg=msg.replace("[","")
 		msg=msg.replace("]","")
 		msg=msg.replace("/","")
-		msg=msg.replace("\"," ")
+		msg=msg.replace("\\"," ")
 		msg=msg.replace("\t"," ")
 		msg=msg.replace("\n"," ")
 		while True:
@@ -578,11 +578,11 @@ class VoiceBlueCommunicationHandler:
 			self.sendTelnetCommand("AT&G0"+usemod+"=AT+CMGF=1",False,False,'OK')
 			#1
 			tosend='AT&G0'+usemod+'=AT+CMGS="%s"' % num
-			result=self.sendTelnetCommand(tosend,False,True,"++g00")
+			result=self.sendTelnetCommand(tosend,False,False,"++g00")
 			Log("USE_GSM_MODEM, step1: ",result)
 			#2
 			tosend=msg+'\x1A'
-			msgsent=self.sendTelnetCommand(tosend,False,True,"OK")
+			msgsent=self.sendTelnetCommand(tosend,False,False,"OK")
 			Log("USE_GSM_MODEM, step2: ",msgsent)
 			self.sendTelnetCommand("AT!G=55",False,False,'OK')
 		
@@ -656,21 +656,10 @@ class VoiceBlueCommunicationHandler:
 			qry_check = "SELECT 1 FROM sms WHERE hash = '"+shahash+"'"
 			check=SQLiteQuery(qry_check,sqlobj,True)
 			if not check:
-				qry = "INSERT INTO sms (	smsdate, \
-											cardnum, \
-											fromnum, \
-											status, \
-											deleted, \
-											hash, \
-											msg ) VALUES ( \
-											'"+str(smsdate)+"', \
-											'"+str(cardnum)+"', \
-											'"+str(sender)+"', \
-											'received', \
-											'no', \
-											'"+str(shahash)+"', \
-											'"+str(msg)+"') \
-				"
+    			qry = 'INSERT INTO sms (smsdate, cardnum, fromnum, status, deleted, hash, msg) \
+                    	VALUES ("%s", "%s", "%s", "received", "no", "%s", "%s")' % (
+						str(smsdate), str(cardnum), str(sender), str(shahash), str(msg)) 
+				
 				rowid=SQLiteExec(qry,sqlobj)
 				SQLiteClose(sqlobj)
 				if rowid > 0:
@@ -1134,4 +1123,5 @@ if __name__=="__main__":
 		sleep(0.5)
 		pid=os.getpid()
 		os.kill(pid, signal.SIGKILL)
+
 	sys.exit(1)
