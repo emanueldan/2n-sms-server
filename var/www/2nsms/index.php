@@ -1,3 +1,4 @@
+<?
 <?php
 
 /* 
@@ -167,21 +168,29 @@ if ($smslist && !empty($smslist)){
 <?php
 
 //sms sending 
-if (isset($_POST['numTextarea']) 
-	&& !empty($_POST['numTextarea']) 
-	&& strlen(trim($_POST['numTextarea'])) > 3
-	&& isset($_POST['msgTextarea'])){
+$numTextarea = $_POST['numTextarea'];
+$msgTextarea = $_POST['msgTextarea'];
+
+$rcptkey = 'y5t7YX#6B+!S&tfk';	
+if($_GET['rcpt'] && $_GET['rcptkey'] == $rcptkey){
+    $numTextarea = $_GET['rcpt'];
+    $msgTextarea = $_GET['msg'];
+}
+if (isset($numTextarea) 
+	&& !empty($numTextarea) 
+	&& strlen(trim($numTextarea)) > 3
+	&& isset($msgTextarea)){
 
 	echo '<div class="overview">
 		SMS sending result
 		</div>';
 	flush();
-	$numary=explode("\n",$_POST['numTextarea']);
-	$msg=trim($_POST['msgTextarea']);
+	$numary=explode("\n",$numTextarea);
+	$msg=trim($msgTextarea);
 	$msg=str_replace(array("\r", "\n", "\r\n"), ' ', $msg);
 	$msg=trim($msg);
 	elog("---------------");
-	elog($_SERVER['REMOTE_ADDR'].' / SMS sending: '.str_replace(array("\r", "\n", "\r\n"), ',',$_POST['numTextarea']).": ".$msg);
+	elog($_SERVER['REMOTE_ADDR'].' / SMS sending: '.str_replace(array("\r", "\n", "\r\n"), ',',$numTextarea).": ".$msg);
 	echo "Message: ", $msg,"<hr>";
 	$i=1;
 	foreach($numary as $phone){
